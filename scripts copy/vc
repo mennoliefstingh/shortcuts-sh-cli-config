@@ -1,0 +1,130 @@
+# #!/bin/bash
+
+# find -H -I --full-path "/bin/activate$" . > /tmp/venv-activate-files.txt
+
+# # Maak een nieuw tekstbestand voor directories van .venv mappen groter dan 0
+# output_file="/tmp/venv-dirs.txt"
+# touch "$output_file"
+
+# TOTAL_SIZE=0
+# RM_SIZE=0
+# while IFS= read -r line; do
+#   venv_dir=$(dirname "$(dirname "$line")")  # Bepaal de .venv map, rekening houdend met spaties
+#   SIZE=$(du -sm "$venv_dir" | cut -f1)  # Verkrijg de grootte van de map in MB
+
+#   if [ "$SIZE" -gt 0 ]; then  # Controleer of de grootte groter is dan 0
+#     echo "$venv_dir" >> "$output_file"  # Voeg de directory toe aan het tekstbestand
+#     TOTAL_SIZE=$((TOTAL_SIZE + SIZE))  # Tel de grootte op bij het totaal
+#   fi
+# done < /tmp/venv-activate-files.txt
+
+# echo "Total size of all envs: $(TOTAL_SIZE) MB"
+# echo ".venv's that are not empty were saved in $output_file"
+# RM_SIZE = 0
+# # Vraag de gebruiker of ze de .venv mappen willen verwijderen
+# echo "These environments can be removed to free up space, but be aware that this will remove all installed packages."
+# echo "Optionally, we can activate the environments and run 'pip freeze' to save the installed packages to a file called requirements_from_venv.txt."
+# echo "You can also open a new shell and remove the lines with environments you don't want removed. "
+# read -p "[1/2] Do you want to free up approximately $TOTAL_SIZE MB by deleting the environments? (y/N) " -n 1 -r
+# if [[ $REPLY =~ ^[Yy]$ ]]; then
+#   read -p $'\n[2/2] Do you want to save the installed package versions to a requirements file? (y/N) ' -n 1 -r
+#     if [[ $REPLY =~ ^[Yy]$ ]]; then
+#         while IFS= read -r line; do
+#         source $line/bin/activate
+#         echo "Saving requirements to $(dirname "$line")/requirements_from_venv.txt"
+
+#         done < "$output_file"
+#         echo "Installed package versions have been saved to requirements_from_venv.txt."
+#     fi
+#   while IFS= read -r line; do
+#     LINE_SIZE=$(du -sm "$line" | cut -f1)
+#     echo $LINE_SIZE
+#     RM_SIZE=$((RM_SIZE + LINE_SIZE))
+#     rm -rf "$line"
+#   done < "$output_file"
+#   echo "Environments have been removed."
+# fi
+# rm /tmp/venv-activate-files.txt
+# rm $output_file
+
+# echo "Freed up $RM_SIZE MB :)"
+# exit 0
+
+#!/bin/bash
+
+# Find all files ending with "/bin/activate" (activation scripts for virtual environments)
+# and store their full paths in a temporary file. Exclude hidden directories (-H)
+# and follow symbolic links (-L).
+fd -H -I --full-path "/bin/activate$" . > /tmp/venv-activate-files.txt
+
+# Create a temporary file to store directories of non-empty .venv folders
+output_file="/tmp/venv-dirs.txt"
+touch "$output_file"
+
+total_size=0
+removed_size=0
+
+# Loop through each line in the temporary file containing activate script paths
+while IFS= read -r line; do
+  # Extract the directory containing the .venv folder, handling spaces in paths
+  venv_dir=$(dirname "$(dirname "$line")")
+
+  # Get the size of the .venv directory in megabytes (MB)
+  size=$(du -sm "$venv_dir" | cut -f1)
+
+  # Check if the size is greater than 0 (empty directory)
+  if [[ $size -gt 0 ]]; then
+    # Add the directory path to the output file
+    echo "$venv_dir" >> "$output_file"
+
+    # Add the size to the total size counter
+    total_size=$((total_size + size))
+  fi
+done < /tmp/venv-activate-files.txt
+
+echo "Total size of all virtual environments: ${total_size} MB"
+echo "Directories of non-empty .venv folders are saved in: $output_file"https://www.reddit.com/r/zsh/
+
+removed_size=0
+
+# Ask the user for confirmation to remove environments
+echo "These virtual environments can be removed to free up space, but this will permanently delete all installed packages within them."
+echo "Optionally, we can activate each environment and run 'pip freeze' to save a list of installed packages to a file named requirements_from_venv.txt."
+echo "You can then open this file and remove entries for environments you want to keep."
+
+read -p "[1/2] Do you want to free up approximately ${total_size} MB by deleting the environments? (y/N) " -n 1 -r
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  
+        # Loop through each directory in the output file
+        while IFS= read -r line; do
+          # Activate the virtual environment
+          source "$line/bin/activate"
+
+          # Save requirements to a file named after the .venv directory
+          pip freeze > "$(dirname "$line")/requirements_from_venv.txt"
+          echo "Saving requirements to $(dirname "$line")/requirements_from_venv.txt"
+        done < "$output_file"
+        echo "Installed package versions have been saved to requirements_from_venv.txt."
+
+  # Loop through each directory in the output file again
+  while IFS= read -r line; do
+    # Get the size of the directory before deleting
+    line_size=$(du -sm "$line" | cut -f1)
+    echo "$line_size"
+
+    # Add the size to the removed size counter
+    removed_size=$((removed_size + line_size))
+
+    # Recursively remove the entire directory
+    rm -rf "$line"
+  done < "$output_file"
+  echo "Environments have been removed."
+fi
+
+# Clean up temporary files
+rm /tmp/venv-activate-files.txt
+rm "$output_file"
+
+echo "Freed up ${removed_size} MB of space :)"
+
+exit 0

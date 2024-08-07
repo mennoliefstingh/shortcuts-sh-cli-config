@@ -1,0 +1,13 @@
+#!/bin/bash
+
+isort .
+black .
+git add *
+git status
+read -p "Are you sure you want to push? " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    aic && git push
+else
+    echo "Push cancelled."
+fi

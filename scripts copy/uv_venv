@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [ ! -d ".venv" ]; then
+    echo "Creating new virtual environment and activating it..."
+    uv venv
+else
+    echo "Activating existing virtual environment..."
+fi

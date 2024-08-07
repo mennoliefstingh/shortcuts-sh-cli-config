@@ -1,0 +1,137 @@
+#!/bin/bash
+# from https://gist.github.com/dannysteenman/6d65754d78a5020f2395446044f5e0f0
+# Exit on error and uninitialized variables
+set -euo pipefail
+
+# Function to check if a command exists and instruct on installation if it doesn't
+command_exists() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Error: $1 is not installed. Please install it to proceed."
+    exit 1
+  fi
+}
+
+# Check for required commands
+for cmd in git gum gh mods; do
+  command_exists "$cmd"
+done
+
+# Get the default branch from the specified remote repository
+get_default_branch() {
+  local default_branch
+  default_branch=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+  echo "$default_branch"
+}
+
+# Get the current Git branch
+get_current_branch() {
+  local current_branch
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+  echo "$current_branch"
+}
+
+# Get a list of local branches without slashes, with the default branch first
+get_branches_without_slash() {
+  local default_branch branches_without_slash current_branch="$1"
+  default_branch=$(get_default_branch)
+
+  # Get all branches, trim leading spaces, and exclude any branches with slashes or the current branch
+  branches_without_slash=$(git branch --list | sed 's/^\*//; s/^[[:space:]]*//; /^[^/]*$/!d' | grep -v "^$current_branch$" | grep -v "^$default_branch$")
+
+  # Check if branches_without_slash is empty
+  if [[ -z "$branches_without_slash" ]]; then
+    # If branches_without_slash is empty, only echo the default branch
+    branches_without_slash="$default_branch"
+  else
+    # If branches_without_slash is not empty, prepend the default branch
+    branches_without_slash=$(echo -e "$default_branch\n$branches_without_slash")
+  fi
+
+  echo "$branches_without_slash"
+}
+
+# Function to extract JIRA ticket number from a branch name
+extract_jira_ticket_from_branch() {
+  local branch_name="$1"
+  # This regex looks for a pattern of 2 to 6 letters followed by a hyphen and numbers,
+  # and it must be either at the start of the string or follow a non-letter character.
+  local jira_ticket_pattern='(^|[^a-zA-Z])([a-zA-Z]{2,6})-([0-9]+)$'
+
+  # Check if the branch name contains a JIRA ticket pattern
+  if [[ $branch_name =~ $jira_ticket_pattern ]]; then
+    # Extract the JIRA ticket prefix and number from the branch name
+    local ticket_prefix="${BASH_REMATCH[2]}"
+    local ticket_number="${BASH_REMATCH[3]}"
+
+    # Convert the ticket prefix to uppercase
+    ticket_prefix=$(echo "$ticket_prefix" | tr '[:lower:]' '[:upper:]')
+
+    # Ensure that the prefix does not contain numbers and is between 2 and 6 letters
+    if [[ ${#ticket_prefix} -ge 2 && ${#ticket_prefix} -le 6 ]]; then
+      # Return the ticket number in uppercase
+      echo "${ticket_prefix}-$ticket_number"
+    else
+      echo ""
+    fi
+  else
+    echo ""
+  fi
+}
+
+# Generate PR title and body
+generate_pr_info() {
+  local current_branch branches merge_to_branch
+  current_branch=$(get_current_branch)
+  branches=$(get_branches_without_slash "$current_branch")
+
+  # Prompt the user for the branch they want to merge to, with the default as a fallback
+  merge_to_branch=$(gum choose --header="Select the branch you wish to merge to:" $branches)
+
+  local diff_output
+  if ! diff_output=$(git diff "$merge_to_branch"..); then
+    echo "Error obtaining git diff from branch $merge_to_branch. Exiting."
+    exit 1
+  fi
+
+  local type scope pr_title_prefix pr_summary pr_body
+
+  # Using the Conventional Commit format
+  type=$(gum choose --header="Select the type of Pull Request:" "feat" "fix" "chore" "docs" "style" "refactor" "test" "revert")
+  scope=$(gum input --placeholder "Scope (optional)")
+  # Since the scope is optional, wrap it in parentheses if it has a value.
+  [[ -n "$scope" ]] && scope="($scope)"
+
+  local jira_ticket default_jira_ticket
+  default_jira_ticket=$(extract_jira_ticket_from_branch "$current_branch")
+
+  if [[ -n "$default_jira_ticket" ]]; then
+    jira_ticket=$(gum input --header "Enter JIRA ticket number (found from branch: $default_jira_ticket)" --value "$default_jira_ticket")
+  else
+    jira_ticket=$(gum input --header "Enter JIRA ticket number (optional)" --placeholder "CCLRTN-1234")
+  fi
+
+  pr_title_prefix="$type$scope"
+
+  echo "Generating Pull Request title..."
+  pr_summary=$(echo "$diff_output" | mods --no-cache "create a Pull Request title. Only return the title and the first word should start with a lowercase letter.")
+  pr_title="$pr_title_prefix: $pr_summary"
+
+  echo -e "\nGenerating Pull Request body..."
+  pr_body=$(echo "$diff_output" | mods --no-cache --format "create a Pull Request body. Only return the following sections in the body: summary, explanation, list of most notable changes per component. For the syntax: The format of these sections start at heading level 2." --max-tokens 650)
+
+  # Append JIRA ticket link to the PR body if provided
+  if [[ -n "$jira_ticket" ]]; then
+    pr_body+=$'\n\n'                                                                                    # Append two newlines
+    pr_body+="## Reference"$'\n'                                                                        # Append "## Reference" with a newline
+    pr_body+="[Jira userstory link: $jira_ticket](https://alliander.atlassian.net/browse/$jira_ticket)" # Append the JIRA ticket link
+  fi
+
+  # echo "Generating a Pull Request from branch: $current_branch to: $merge_to_branch"
+  gh pr create \
+    --title "$pr_title" \
+    --body "$pr_body" \
+    --base "$merge_to_branch"
+}
+
+# Main script execution starts here
+generate_pr_info "$@"

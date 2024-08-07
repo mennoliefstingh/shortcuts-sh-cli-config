@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Check if the first argument is 'install'
+if [ "$1" == "install" ]; then
+  # Shift the first argument ('install') off the arguments list
+  shift
+  # Run 'uv pip install' with the remaining arguments
+  uv pip install "$@"
+else
+  # If the first argument is not 'install', run 'pip' with all original arguments
+  pip "$@"
+fi

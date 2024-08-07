@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Function to get clipboard content
+get_clipboard_content() {
+    if command -v xclip > /dev/null; then
+        xclip -selection clipboard -o
+    elif command -v pbpaste > /dev/null; then
+        pbpaste
+    else
+        echo "Error: xclip or pbpaste command not found." >&2
+        exit 1
+    fi
+}
+
+# Function to copy content to clipboard
+copy_to_clipboard() {
+    if command -v xclip > /dev/null; then
+        echo -n "$1" | xclip -selection clipboard
+    elif command -v pbcopy > /dev/null; then
+        echo -n "$1" | pbcopy
+    else
+        echo "Error: xclip or pbcopy command not found." >&2
+        exit 1
+    fi
+}
+
+# Main script logic
+if [[ "$1" ]]; then
+    # If an argument is provided, use it as the Base64 code
+    code="$1"
+else
+    # If no argument is provided, get the code from the clipboard
+    code=$(get_clipboard_content)
+fi
+
+# Decode the Base64 code and copy the output to clipboard
+decoded=$(echo "$code" | base64 --decode)
+copy_to_clipboard "$decoded"
+echo "$decoded"
+
