@@ -14,11 +14,11 @@ Template for a ~/.cli dir to collect, customize and configure your cli tooling
 export PATH="$HOME/.cli/scripts:$PATH"
 
 # Load alias collections from .cli/aliases
-for file in /Users/menno/.cli/aliases/*.sh; do
+for file in ~/.cli/aliases/*.sh; do
     if [ -f "$file" ]; then
         source "$file"
     else
-        echo "No .sh files found in /Users/menno/.cli/aliases/"
+        echo "No .sh files found in ~/.cli/aliases/"
     fi
 done
 ```
