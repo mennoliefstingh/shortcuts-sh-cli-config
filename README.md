@@ -6,7 +6,7 @@ Template for a ~/.cli dir to collect, customize and configure your cli tooling
 - Clone it in your home dir and rename it to `.cli`
   - `cd ~`
   - `git clone git@github.com:[YOURNAME]/shortcuts-sh-cli-config.git`
-  - `mv shortcuts-sh-cli-config .cli`
+  - `mv cli-config .cli`
 - Evaluate which aliases/scripts you want to keep and comment out/delete the rest
 - Add the following to your `~/.zshrc`, `~/.bashrc` or equivalent:
 ```bash
